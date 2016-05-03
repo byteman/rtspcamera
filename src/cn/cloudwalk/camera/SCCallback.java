@@ -14,7 +14,7 @@ public class SCCallback {
 	static public int SCMessageHandler(int obj, int msg) 
 	{
 		Log.e("camera","disconnect " + msg);
-		DecodeStream.disconnectd = true;
+		DecodeStream.notifyClosed();
 		return 0;
 	}
 

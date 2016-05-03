@@ -6,6 +6,7 @@ import java.util.Arrays;
 
 import cn.cloudwalk.camera.DecodeStream;
 import cn.cloudwalk.camera.MediaInfo;
+import cn.cloudwalk.camera.RtspObserver;
 import android.os.Bundle;
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -19,7 +20,7 @@ import android.widget.Button;
 import android.widget.Toast;
 import android.opengl.GLSurfaceView;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements RtspObserver{
 	public static boolean detectOpenGLES20(Context context) {  
 	    ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);  
 	    ConfigurationInfo info = am.getDeviceConfigurationInfo();  
@@ -56,46 +57,19 @@ public class MainActivity extends Activity {
 			
 			@Override
 			public void onClick(View arg0) {
-				 int err = DecodeStream.get().Start("rtsp://admin:admin123@192.168.10.200",2000);
-				// int err = DecodeStream.get().Start("rtsp://192.168.1.244/8.264",2000);
-			    	Log.e("camera", "ret="+err);
-			    	if(err < 0) return;
-			    	MediaInfo ret = DecodeStream.get().GetInfo();
-			    	
-			    	Log.e("camera",ret.width+"");
-			    	Log.e("camera",ret.height+"");
-			    	Log.e("camera",ret.format+"");
-			    	mGLFRenderer.update(ret.width, ret.height);
-				// TODO Auto-generated method stub
-				 Thread thread=new Thread(new Runnable()  
-			        {  
-			            @Override  
-			            public void run()  
-			            {  
-			            	//decode("rtsp://admin:admin123@192.168.10.200");
-			            	//decode("rtsp://192.168.1.118/life.264");
-			            	while(true){
-			            		byte image[] = DecodeStream.get().GetImage(500);
-			            		if(DecodeStream.get().isDisconnected())
-			            		{
-			            			Log.e("camera","isDisconnected true");
-			            			break;
-			            		}
-			            		if(image == null){
-			            			Log.e("camera","image has nothing");
-			            			
-			            			continue;
-			            		}
-			            		byte[] yarr = Arrays.copyOfRange(image, 0, 1080*1920);
-			            		byte[] uarr = Arrays.copyOfRange(image, 1080*1920, 1080*1920*5/4);
-			            		byte[] varr = Arrays.copyOfRange(image, 1080*1920*5/4, 1080*1920*3/2);
-			            		
-			            		mGLFRenderer.update(yarr,uarr,varr);
-			            		Log.e("camera","image="+image.length);
-			            	}
-			            }  
-			        });  
-			        thread.start();  
+				DecodeStream.get().setCallbak(MainActivity.this);
+				//int err = DecodeStream.get().Start("rtsp://admin:admin123@192.168.10.200",2000);
+				 int err = DecodeStream.get().Start("rtsp://192.168.1.244/8.264",2000);
+		    	Log.e("camera", "ret="+err);
+		    	if(err < 0) return;
+		    	MediaInfo info = DecodeStream.get().GetInfo();
+		    	
+		    	Log.e("camera",info.width+"");
+		    	Log.e("camera",info.height+"");
+		    	Log.e("camera",info.format+"");
+		    	mGLFRenderer.update(info.width, info.height);
+				
+				
 			}
 		});
     }
@@ -108,5 +82,39 @@ public class MainActivity extends Activity {
         getMenuInflater().inflate(R.menu.main, menu);
         return true;
     }
+
+
+
+	@Override
+	public boolean onConnect() {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+
+
+	@Override
+	public boolean onConfigConfiged(int width, int height, int format) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+
+
+	@Override
+	public boolean onDisconnect() {
+		// TODO Auto-generated method stub
+		
+		return false;
+	}
+
+
+
+	@Override
+	public boolean onDataArrival(byte[] y, byte[] u, byte[] v) {
+		// TODO Auto-generated method stub
+		mGLFRenderer.update(y, u, v);
+		return false;
+	}
     
 }
