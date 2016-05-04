@@ -53,7 +53,7 @@ public class DecodeStream {
 						
 					}
 				
-					byte[] outData=_decoderDecoder.getOutput(40000);
+					byte[] outData=_decoderDecoder.getOutput(20000);
 					while(outData != null)
 					{
 						if(observer!=null)
