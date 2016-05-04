@@ -59,6 +59,7 @@ public class MainActivity extends Activity implements RtspObserver{
 			public void onClick(View arg0) {
 				DecodeStream.get().setCallbak(MainActivity.this);
 				int err = DecodeStream.get().Start("rtsp://admin:admin123@192.168.1.200",2000);
+				//int err = DecodeStream.get().Start("rtsp://218.204.223.237:554/live/1/66251FC11353191F/e7ooqwcfbqjoo80j.sdp",2000);
 				// int err = DecodeStream.get().Start("rtsp://192.168.1.245/8.264",2000);
 		    	Log.e("camera", "ret="+err);
 		    	if(err < 0) 

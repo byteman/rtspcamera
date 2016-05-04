@@ -58,7 +58,7 @@ public class DecodeStream {
 					{
 						if(observer!=null)
 						{
-							int size = 1920*1080;
+							int size =Information.width * Information.height;
 							byte[] yarr = Arrays.copyOfRange(outData, 0, size );
 		            		byte[] uarr = Arrays.copyOfRange(outData, size, size*5/4);
 		            		byte[] varr = Arrays.copyOfRange(outData, size*5/4, size*3/2);
