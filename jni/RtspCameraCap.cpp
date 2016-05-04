@@ -78,7 +78,7 @@ RtspCameraCap::~RtspCameraCap(void)
 int RtspCameraCap::istimeout()
 {
 	timeout++;
-	if(timeout > 40) {
+	if(timeout > 100) {
 		timeout=0;
 		return 1; //这个就是超时的返回
 	}
@@ -121,6 +121,14 @@ int RtspCameraCap::connect(const char* psDevName ,int timeout_ms,bool auto_recon
 
 int RtspCameraCap::pause(bool bPause)
 {
+	CORE::Core_FastMutex::ScopedLock lock(_mutex);
+
+	if(bPause==true)
+	{
+		q.clear();
+	}
+		
+
 	_pause = bPause;
 }
 

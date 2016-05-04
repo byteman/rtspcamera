@@ -5,7 +5,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.Arrays;
 
+import android.R.integer;
 import android.media.MediaCodec;
+import android.media.MediaCodec.CryptoException;
 import android.media.MediaFormat;
 import android.util.Log;
 
@@ -13,21 +15,11 @@ public class DecodeStream {
 	
 	private static DecodeStream api = null;
 	
-	private static MediaCodec mMediaCodec;
-  
-	private static String MIME_TYPE = "video/avc";
-
-
-	private final static int TIME_INTERNAL = 30;
-	private final static int CODEC_H264 = 1;
-	private final static int CODEC_MPEG = 2;
-	private final static int CODEC_UNKNOW = 0;
-	private static MediaInfo Information = null;
-	private static MediaFormat mediaFormat = null;
-
 	private static boolean closed = false;
 	static private RtspObserver observer=null;
-
+	private static Thread _thread; 
+	private static VideoDecoder _decoderDecoder;
+	private static MediaInfo Information;
 	public void setCallbak(RtspObserver obs)
 	{
 		observer = obs;
@@ -38,18 +30,16 @@ public class DecodeStream {
 	}
 	private static void startThread()
 	{
+		closed = false;
 		
 		//连接成功后创建线程.或者连接成功后，线程开始工作.平时线程是睡眠的.
-		new Thread(new Runnable() {
+		_thread = new Thread(new Runnable() {
 			
 			@Override
 			public void run() {
-				int mCount = 0;
-				int offset = 0;
-				closed = false;
+			
 				// TODO Auto-generated method stub
 				while(!closed)
-				//	while(true)
 				{
 					int timeout_ms = 500;
 					byte arr[] = GetCameraStreamJNI.get().GetImage(timeout_ms);
@@ -58,88 +48,32 @@ public class DecodeStream {
 					{
 						continue;
 					}
-					
-					// Get input buffer index
-					ByteBuffer[] inputBuffers  = mMediaCodec.getInputBuffers();
-					if(inputBuffers == null)
+					if(_decoderDecoder.writeInput(arr,1000000) < 0)
 					{
 						
 					}
-					//Log.e("Media","begin dequeueInputBuffer");
-					int inputBufferIndex = mMediaCodec.dequeueInputBuffer(100000);
-					//Log.e("Media","end dequeueInputBuffer");
 				
-					if (inputBufferIndex >= 0) {
-						ByteBuffer inputBuffer = inputBuffers[inputBufferIndex];
-						inputBuffer.clear();
-						inputBuffer.put(arr, offset, arr.length);
-						
-						mMediaCodec.queueInputBuffer(inputBufferIndex, 0, arr.length, mCount* TIME_INTERNAL, 0);
-						
-						mCount++;
-					} else {
-						Log.e("Media", "inputBufferIndex < 0");
-						continue;
-					}
-					
-					ByteBuffer[] outputBuffers = mMediaCodec.getOutputBuffers();  
-					
-					// Get output buffer index
-					MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-					//Log.e("Media","begin dequeueOutputBuffer");
-					//max 40ms
-					int outputBufferIndex = mMediaCodec.dequeueOutputBuffer(bufferInfo, 40000);
-					//Log.e("Media","end dequeueOutputBuffer");
-					if(outputBufferIndex < 0)
+					byte[] outData=_decoderDecoder.getOutput(40000);
+					while(outData != null)
 					{
-						Log.e("Media", "outputBufferIndex = "+outputBufferIndex);
-						if(outputBufferIndex == -1)
-						{
-							//try wait
-						}
-						else if(outputBufferIndex == -2)
-						{
-							//MediaFormat format = mMediaCodec.getOutputFormat();
-							//output format changed
-						}
-						else if(outputBufferIndex == -3)
-						{
-							//outputBuffers = mMediaCodec.getOutputBuffers();
-							//output buffer changed
-						}
-						else
-						{
-							//unkown error
-						}
-					}
-					
-					while(outputBufferIndex >=0)
-					{
-						byte outData[] = new byte[bufferInfo.size];
-						ByteBuffer outputBuffer = outputBuffers[outputBufferIndex];  
-							
-						outputBuffer.get(outData);
-						mMediaCodec.releaseOutputBuffer(outputBufferIndex, true);
 						if(observer!=null)
 						{
-							byte[] yarr = Arrays.copyOfRange(outData, 0, 1080*1920);
-		            		byte[] uarr = Arrays.copyOfRange(outData, 1080*1920, 1080*1920*5/4);
-		            		byte[] varr = Arrays.copyOfRange(outData, 1080*1920*5/4, 1080*1920*3/2);
+							int size = 1920*1080;
+							byte[] yarr = Arrays.copyOfRange(outData, 0, size );
+		            		byte[] uarr = Arrays.copyOfRange(outData, size, size*5/4);
+		            		byte[] varr = Arrays.copyOfRange(outData, size*5/4, size*3/2);
 							observer.onDataArrival(yarr, uarr,varr);
 						}
-						outputBufferIndex = mMediaCodec.dequeueOutputBuffer(bufferInfo, 0);
-						
+						outData=_decoderDecoder.getOutput(0);
 					}
-					
+				
 					
 				}
-					//Log.e("Media","Thread Quit0");
-				mMediaCodec.stop();
-				mMediaCodec.release();
-				mMediaCodec = null;
-				mediaFormat = null;
+				
+				Log.e("Media", "decoder thread exit");
 			}
-		}).start();
+		});
+		_thread.start();
 	}
 	public int Start(String url,int timeout_ms){
 		
@@ -189,33 +123,19 @@ public class DecodeStream {
 		// TODO Auto-generated method stub
 		
 		Information = GetCameraStreamJNI.get().GetMediaInfo();
-		if(Information.format == CODEC_H264)MIME_TYPE="video/avc";
-		else if(Information.format == CODEC_MPEG)MIME_TYPE="video/mp4v-es";
-		else if(Information.format == CODEC_UNKNOW) return -1;
-
-		if(mMediaCodec==null)
+		if(Information==null)
 		{
-			mMediaCodec = MediaCodec.createDecoderByType(MIME_TYPE);
-			
-			
-	    	if (mMediaCodec == null)
-	    	{
-	    	
-	    		return -1;
-	    	}
-	    	if(observer!=null)
-	    	{
-	    		observer.onConfigConfiged(Information.width, Information.height,Information.format);
-	    	}
-
-	    	mediaFormat = MediaFormat.createVideoFormat(MIME_TYPE,
-	    			Information.width, Information.height);
-
-	    	mMediaCodec.configure(mediaFormat, null,null, 0);
-
-	    	mMediaCodec.start();
+			Log.e("Media","Can not get Information");
+			return -1;
+		}
+		if(_decoderDecoder==null)
+		{
+			_decoderDecoder = new VideoDecoder();
+	    
+	    	_decoderDecoder.init(Information);
 	    	
 		}
+		
 		if(observer!=null)
 		{
 			observer.onConnect();
