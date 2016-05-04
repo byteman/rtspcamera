@@ -2,6 +2,7 @@ package cn.cloudwalk.camera;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.Arrays;
 
 import android.media.MediaCodec;
@@ -12,78 +13,32 @@ public class DecodeStream {
 	
 	private static DecodeStream api = null;
 	
-	private MediaCodec mMediaCodec;
+	private static MediaCodec mMediaCodec;
   
-	private String MIME_TYPE = "video/avc";
+	private static String MIME_TYPE = "video/avc";
 
-	private final String TAG = "MediaCodeSample";
 
 	private final static int TIME_INTERNAL = 30;
 	private final static int CODEC_H264 = 1;
 	private final static int CODEC_MPEG = 2;
 	private final static int CODEC_UNKNOW = 0;
-	private MediaInfo Information = null;
-	MediaFormat mediaFormat = null;
+	private static MediaInfo Information = null;
+	private static MediaFormat mediaFormat = null;
+
+	private static boolean closed = false;
 	static private RtspObserver observer=null;
-	static public  boolean disconnectd = true;
+
 	public void setCallbak(RtspObserver obs)
 	{
 		observer = obs;
 	}
-	public int Start(String url,int timeout_ms){
-		if(disconnectd==false)
-		{
-			return 0;
-		}
-		int err = GetCameraStreamJNI.get().Open(url,timeout_ms,false);
-		//打开摄像头设置成异步，不是立即返回连接成功后，由jni层回调状态，根据返回的格式，再创建解码器
-		//或者将解码器放到jni层去做.自动重连.连接成功或者断开后回调通知界面层.
-		if(err != 0 ) 
-		{
-			return err;
-		}
+	private static void stopThread()
+	{
+		closed = true;
+	}
+	private static void startThread()
+	{
 		
-		Information = GetCameraStreamJNI.get().GetMediaInfo();
-		if(Information.format == CODEC_H264)MIME_TYPE="video/avc";
-		else if(Information.format == CODEC_MPEG)MIME_TYPE="video/mp4v-es";
-		else if(Information.format == CODEC_UNKNOW) return -1;
-		if(mMediaCodec!=null)
-		{
-			String now_mime_type =  mediaFormat.getString(MediaFormat.KEY_MIME);
-			int now_width  = mediaFormat.getInteger(MediaFormat.KEY_WIDTH);
-			int now_height = mediaFormat.getInteger(MediaFormat.KEY_HEIGHT);
-			if( (MIME_TYPE !=now_mime_type) || now_width!=Information.width || now_height!=Information.height)
-			{
-				mMediaCodec.stop();
-				mMediaCodec = null;
-				mediaFormat = null;
-			}
-			
-			
-		}
-		if(mMediaCodec==null)
-		{
-			mMediaCodec = MediaCodec.createDecoderByType(MIME_TYPE);
-			
-			
-	    	if (mMediaCodec == null)
-	    	{
-	    		Log.e(TAG, "createDecoder failed");
-	    		return -1;
-	    	}
-	    	if(observer!=null)
-	    	{
-	    		observer.onConfigConfiged(Information.width, Information.height,Information.format);
-	    	}
-	    	//MediaFormat mediaFormat = MediaFormat.createVideoFormat(MIME_TYPE,VIDEO_WIDTH, VIDEO_HEIGHT);
-	    	mediaFormat = MediaFormat.createVideoFormat(MIME_TYPE,
-	    			Information.width, Information.height);
-	    	//mMediaCodec.configure(mediaFormat, mSurfaceView.getHolder().getSurface(),null, 0);
-	    	mMediaCodec.configure(mediaFormat, null,null, 0);
-
-	    	mMediaCodec.start();
-	    	
-		}
 		//连接成功后创建线程.或者连接成功后，线程开始工作.平时线程是睡眠的.
 		new Thread(new Runnable() {
 			
@@ -91,8 +46,9 @@ public class DecodeStream {
 			public void run() {
 				int mCount = 0;
 				int offset = 0;
+				closed = false;
 				// TODO Auto-generated method stub
-				while(!disconnectd)
+				while(!closed)
 				//	while(true)
 				{
 					int timeout_ms = 500;
@@ -105,17 +61,21 @@ public class DecodeStream {
 					
 					// Get input buffer index
 					ByteBuffer[] inputBuffers  = mMediaCodec.getInputBuffers();
-					
-					int inputBufferIndex = mMediaCodec.dequeueInputBuffer(-1);
-
+					if(inputBuffers == null)
+					{
+						
+					}
+					//Log.e("Media","begin dequeueInputBuffer");
+					int inputBufferIndex = mMediaCodec.dequeueInputBuffer(100000);
+					//Log.e("Media","end dequeueInputBuffer");
 				
 					if (inputBufferIndex >= 0) {
 						ByteBuffer inputBuffer = inputBuffers[inputBufferIndex];
 						inputBuffer.clear();
 						inputBuffer.put(arr, offset, arr.length);
-						//Log.e("Media","begin queueInputBuffer");
+						
 						mMediaCodec.queueInputBuffer(inputBufferIndex, 0, arr.length, mCount* TIME_INTERNAL, 0);
-						//Log.e("Media","end queueInputBuffer");
+						
 						mCount++;
 					} else {
 						Log.e("Media", "inputBufferIndex < 0");
@@ -127,7 +87,8 @@ public class DecodeStream {
 					// Get output buffer index
 					MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
 					//Log.e("Media","begin dequeueOutputBuffer");
-					int outputBufferIndex = mMediaCodec.dequeueOutputBuffer(bufferInfo, 20000);
+					//max 40ms
+					int outputBufferIndex = mMediaCodec.dequeueOutputBuffer(bufferInfo, 40000);
 					//Log.e("Media","end dequeueOutputBuffer");
 					if(outputBufferIndex < 0)
 					{
@@ -138,10 +99,12 @@ public class DecodeStream {
 						}
 						else if(outputBufferIndex == -2)
 						{
+							//MediaFormat format = mMediaCodec.getOutputFormat();
 							//output format changed
 						}
 						else if(outputBufferIndex == -3)
 						{
+							//outputBuffers = mMediaCodec.getOutputBuffers();
 							//output buffer changed
 						}
 						else
@@ -171,10 +134,23 @@ public class DecodeStream {
 					
 				}
 					//Log.e("Media","Thread Quit0");
-				
+				mMediaCodec.stop();
+				mMediaCodec.release();
+				mMediaCodec = null;
+				mediaFormat = null;
 			}
 		}).start();
-		disconnectd = false;	
+	}
+	public int Start(String url,int timeout_ms){
+		
+		int err = GetCameraStreamJNI.get().Open(url,timeout_ms,true,true);
+		//打开摄像头设置成异步，不是立即返回连接成功后，由jni层回调状态，根据返回的格式，再创建解码器
+		//或者将解码器放到jni层去做.自动重连.连接成功或者断开后回调通知界面层.
+		if(err != 0 ) 
+		{
+			return err;
+		}
+
 		return 0;
 	}
 	
@@ -182,49 +158,22 @@ public class DecodeStream {
 		
 		return Information;
 	}
-	public boolean isDisconnected()
-	{
-		return disconnectd;
-	}
-	public byte[] GetImage(int timeout_ms){
-		
-	
-		if(disconnectd)
-		{
-			return null;
-		}
 
-		ByteBuffer[] outputBuffers = mMediaCodec.getOutputBuffers();  
-		
-		// Get output buffer index
-		MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-		//Log.e("Media","begin dequeueOutputBuffer");
-		int outputBufferIndex = mMediaCodec.dequeueOutputBuffer(bufferInfo, 20000);
-		//Log.e("Media","end dequeueOutputBuffer");
-		if(outputBufferIndex < 0)
-		{
-			Log.e("Media", "outputBufferIndex = "+outputBufferIndex);
-			return null;
-		}
-		byte outData[] = new byte[bufferInfo.size];
-		ByteBuffer outputBuffer = outputBuffers[outputBufferIndex];  
-			
-		outputBuffer.get(outData);
 	
-		mMediaCodec.releaseOutputBuffer(outputBufferIndex, true);
-		
-		return outData;	
-	}
 	static public void notifyClosed()
 	{
-		disconnectd = true;
+	
+	
 		if(observer!=null)
 		{
 			observer.onDisconnect();
 		}
+		stopThread();
 	}
-	public int Closeurl(){
-		
+	public int Closeurl()
+	{
+		closed  = true;
+		stopThread();
 		int ret = GetCameraStreamJNI.get().Close();
 		Log.d("me", "ret="+ret);
 		return ret;
@@ -235,6 +184,49 @@ public class DecodeStream {
 		if(api == null)
 			api = new DecodeStream();
 		return api;
+	}
+	public static int notifyOpened() {
+		// TODO Auto-generated method stub
+		
+		Information = GetCameraStreamJNI.get().GetMediaInfo();
+		if(Information.format == CODEC_H264)MIME_TYPE="video/avc";
+		else if(Information.format == CODEC_MPEG)MIME_TYPE="video/mp4v-es";
+		else if(Information.format == CODEC_UNKNOW) return -1;
+
+		if(mMediaCodec==null)
+		{
+			mMediaCodec = MediaCodec.createDecoderByType(MIME_TYPE);
+			
+			
+	    	if (mMediaCodec == null)
+	    	{
+	    	
+	    		return -1;
+	    	}
+	    	if(observer!=null)
+	    	{
+	    		observer.onConfigConfiged(Information.width, Information.height,Information.format);
+	    	}
+
+	    	mediaFormat = MediaFormat.createVideoFormat(MIME_TYPE,
+	    			Information.width, Information.height);
+
+	    	mMediaCodec.configure(mediaFormat, null,null, 0);
+
+	    	mMediaCodec.start();
+	    	
+		}
+		if(observer!=null)
+		{
+			observer.onConnect();
+			observer.onConfigConfiged(Information.width, Information.height,Information.format);
+		}
+		startThread();
+		return 0;
+	}
+	public void pause(boolean b) {
+		// TODO Auto-generated method stub
+		GetCameraStreamJNI.get().Pause(b);
 	}
 	
 }

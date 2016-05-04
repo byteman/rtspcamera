@@ -145,15 +145,15 @@ static void InitCallBackObjs(JNIEnv* env)
 	}
 	
 }
-jint Java_cn_cloudwalk_camera_GetCameraStreamJNI_Open(JNIEnv *env,jclass,jstring jpath,jint timeout_ms,jboolean auto_reconnect)
+jint Java_cn_cloudwalk_camera_GetCameraStreamJNI_Open(JNIEnv *env,jclass,jstring jpath,jint timeout_ms,jboolean auto_reconnect,jboolean tcp)
 {
 	LOGE("GetCameraStreamInit called");
 	InitCallBackObjs(env);
 	LOGE("GetCameraStreamInit -- %d",__LINE__);
 	std::string path = jtoString(env,jpath);
-	LOGE("GetCameraStreamInit -- %d",__LINE__);
+	LOGE("GetCameraStreamInit22 -- %d",__LINE__);
 
-	int err = camerastream.open(path.c_str(),timeout_ms,auto_reconnect);
+	int err = camerastream.connect(path.c_str(),timeout_ms,auto_reconnect,tcp);
 	LOGE("GetCameraStreamInit -- %d",__LINE__);
 	
 	
@@ -162,6 +162,12 @@ jint Java_cn_cloudwalk_camera_GetCameraStreamJNI_Open(JNIEnv *env,jclass,jstring
 
 }
 
+jint Java_cn_cloudwalk_camera_GetCameraStreamJNI_Pause
+  (JNIEnv *, jclass,jboolean bPause)
+{
+	int err = camerastream.pause(bPause);
+	return err;
+}
 jbyteArray Java_cn_cloudwalk_camera_GetCameraStreamJNI_GetImage(JNIEnv *env,jclass,jint timeout)
 {
 	

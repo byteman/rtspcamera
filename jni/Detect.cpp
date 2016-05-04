@@ -22,9 +22,13 @@ public:
 private:
 	CORE::Core_Thread _thread;
 	std::string rtsp_url;
+	bool _tcp;
+	int _timeout;
 };
 
-Detect::Detect(void)
+Detect::Detect(void):
+	timeout(2000),
+		tcp(false)
 {
 
 }
@@ -34,9 +38,11 @@ Detect::~Detect(void)
 
 }
 
-bool Detect::start(std::string rtsp_url_addr)
+bool Detect::start(std::string rtsp_url_addr,int timeout,bool tcp)
 {
     rtsp_url = rtsp_url_addr;
+	_tcp = tcp;
+	_timeout = timeout;
 	_thread.start(*this);
 }
 
@@ -62,7 +68,7 @@ void Detect::run(void)
 		}*/
 		if(cam.isstop())
 		{
-			cam.open(rtsp_url.c_str(),0,0,0);
+			cam.open(rtsp_url.c_str(),_timeout,true,_tcp);
 		}
 		Sleep(10000);
 	}

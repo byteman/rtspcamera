@@ -63,7 +63,8 @@ static int init_ffmpeg_env(int enable_log,std::string path)
 RtspCameraCap::RtspCameraCap(void):
 	pFormatCtx_Video(NULL),
 		timeout(0),
-		_callback(NULL)
+		_callback(NULL),
+		_pause(false)
 {
 	_bExit = true;
 }
@@ -105,16 +106,29 @@ void RtspCameraCap::setCallBack(SCCallbackType callback)
 	_callback = callback;
 
 }
+int RtspCameraCap::connect(const char* psDevName ,int timeout_ms,bool auto_reconnect,bool tcp )
+{
+	LOGE("begin connect ");
 
-int RtspCameraCap::open(const char* psDevName,int timeout_ms,bool auto_reconnect)
+	//init();
+
+	if(auto_reconnect)
+	{
+		dector.start(this,psDevName,timeout_ms,tcp);
+	}
+	return 0;
+}
+
+int RtspCameraCap::pause(bool bPause)
+{
+	_pause = bPause;
+}
+
+int RtspCameraCap::open(const char* psDevName,int timeout_ms,bool auto_reconnect,bool tcp)
 
 {
 	int err = 0;
-	//init();
-	if(auto_reconnect)
-	{
-		dector.start(this,psDevName);
-	}
+
 	if(_bExit==false) //如果已经启动了连接.
 	{
 		
@@ -133,9 +147,14 @@ int RtspCameraCap::open(const char* psDevName,int timeout_ms,bool auto_reconnect
 		return -6;
 	}
 	AVDictionary *avdic=NULL;
-	char option_key[]="rtsp_transport";
-	char option_value[]="tcp";							//udp会丢包导致花屏
-	av_dict_set(&avdic,option_key,option_value,0);
+	if(tcp)
+	{
+		char option_key[]="rtsp_transport";
+		char option_value[]="tcp";							//udp会丢包导致花屏
+		av_dict_set(&avdic,option_key,option_value,0);
+
+	}
+
 	av_dict_set_int(&avdic, "stimeout", timeout_ms*1000, 0);			//设置avformat_open_input的超时时间
 
 	int result=avformat_open_input(&pFormatCtx_Video, psDevName,NULL,&avdic);
@@ -180,7 +199,11 @@ int RtspCameraCap::open(const char* psDevName,int timeout_ms,bool auto_reconnect
 	}
 	else _format = 0;
 	LOGE("width = %d,height = %d,open-- %d",_width,_height,_format,__LINE__);
-
+	if(_callback)
+	{
+		LOGE(" connect ok callback");
+		_callback(1,0);
+	}
 	LOGE("thread start....\n");
 	start();
 	LOGE("thread start....ok\n");
@@ -219,6 +242,7 @@ void RtspCameraCap::run()
 	LOGE("open -- %d",__LINE__);
 	pFormatCtx_Video->interrupt_callback.callback = AVInterruptCallBackFun;  
 	pFormatCtx_Video->interrupt_callback.opaque = this;  
+	
 	while(!_bExit)
 	{
 		packet.data = NULL;
@@ -233,12 +257,15 @@ void RtspCameraCap::run()
 			//continue;
 		}
 		timeout = 0;
-		
+		if(_pause)
+		{
+			continue;
+		}
 #if 1
 		if(packet.stream_index == stream_index)
 		{
 			CORE::Core_FastMutex::ScopedLock lock(_mutex);
-			#if 0
+			#if 1
 			if(q.size() > 25)
 			{
 				media_packt* discard_pkt = q.front();
@@ -262,15 +289,14 @@ void RtspCameraCap::run()
 	pFormatCtx_Video = NULL;
 	_evtExit.set();
 	_thread.stop();
-	LOGE("begin callbakc");
+	
 	#if 1
 	if(_callback)
 	{
-		LOGE(" callbakc");
+		LOGE(" disconnect callback");
 		_callback(0,err);
 	}
 	_evtData.set();
-	LOGE("end callbakc");
 	#endif
 }
 
@@ -311,7 +337,9 @@ media_packt* RtspCameraCap::getimage(int timeout)
 }
 
 Detect::Detect():
-	_pCamera(NULL)
+	_pCamera(NULL),
+	_timeout(2000),
+	_tcp(false)
 {
 	_decExit = true;
 	//static int cout = 0;
@@ -323,11 +351,19 @@ Detect::~Detect(void)
 	
 }
 
-bool Detect::start(RtspCameraCap* pCamera,std::string rtsp_url_addr)
+bool Detect::start(RtspCameraCap* pCamera,std::string rtsp_url_addr,int timeout, bool tcp)
 {
-	if(!_decExit) return true;
+	LOGE("Detect start");
+	if(!_decExit) 
+	{
+		LOGE("Detect has started");
+		return true;
+
+	}
 	_pCamera = pCamera;
     rtsp_url = rtsp_url_addr;
+	_timeout = timeout;
+	_tcp = tcp;
 	_thread.start(*this);
 	_evtReady.wait();
 	return true;
@@ -347,16 +383,17 @@ void Detect::run(void)
 {
 	_decExit = false;
 	_evtReady.set();
-	CORE::Core_Thread::sleep(5000);
+	//CORE::Core_Thread::sleep(5000);
 	while(!_decExit)
 	{
-		printf("in dector's while \n");
-		LOGE("in dector's while --%d\n",__LINE__);
+	
+		LOGE("rtsp dector's running --%d\n",__LINE__);
 		if(_pCamera->isstop())
 		{
-			printf("open the camera again \n");
-			_pCamera->open(rtsp_url.c_str(),2000,true);
-			LOGE("open the camera again --%d\n",__LINE__);
+		
+			LOGE("reopen the camera again --%d\n",__LINE__);
+			int err = _pCamera->open(rtsp_url.c_str(),_timeout,true,_tcp);
+			LOGE("opened the camera err=%d\n",err);
 		}
 		CORE::Core_Thread::sleep(6000);
 	}

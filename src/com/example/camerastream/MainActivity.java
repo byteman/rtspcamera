@@ -58,21 +58,36 @@ public class MainActivity extends Activity implements RtspObserver{
 			@Override
 			public void onClick(View arg0) {
 				DecodeStream.get().setCallbak(MainActivity.this);
-				//int err = DecodeStream.get().Start("rtsp://admin:admin123@192.168.10.200",2000);
-				 int err = DecodeStream.get().Start("rtsp://192.168.1.244/8.264",2000);
+				int err = DecodeStream.get().Start("rtsp://admin:admin123@192.168.1.200",2000);
+				// int err = DecodeStream.get().Start("rtsp://192.168.1.245/8.264",2000);
 		    	Log.e("camera", "ret="+err);
-		    	if(err < 0) return;
-		    	MediaInfo info = DecodeStream.get().GetInfo();
+		    	if(err < 0) 
+		    		return;
+		    
 		    	
-		    	Log.e("camera",info.width+"");
-		    	Log.e("camera",info.height+"");
-		    	Log.e("camera",info.format+"");
-		    	mGLFRenderer.update(info.width, info.height);
 				
 				
 			}
 		});
     }
+
+
+
+	@Override
+	protected void onPause() {
+		// TODO Auto-generated method stub
+		super.onPause();
+		DecodeStream.get().pause(true);
+	}
+
+
+
+	@Override
+	protected void onResume() {
+		// TODO Auto-generated method stub
+		super.onResume();
+		DecodeStream.get().pause(false);
+	}
 
 
 
@@ -88,6 +103,7 @@ public class MainActivity extends Activity implements RtspObserver{
 	@Override
 	public boolean onConnect() {
 		// TODO Auto-generated method stub
+		Log.e("camera","rtsp connect ok");		
 		return false;
 	}
 
@@ -96,6 +112,7 @@ public class MainActivity extends Activity implements RtspObserver{
 	@Override
 	public boolean onConfigConfiged(int width, int height, int format) {
 		// TODO Auto-generated method stub
+		mGLFRenderer.update(width, height);
 		return false;
 	}
 
@@ -104,7 +121,7 @@ public class MainActivity extends Activity implements RtspObserver{
 	@Override
 	public boolean onDisconnect() {
 		// TODO Auto-generated method stub
-		
+		Log.e("camera","rtsp disconnect ");		
 		return false;
 	}
 

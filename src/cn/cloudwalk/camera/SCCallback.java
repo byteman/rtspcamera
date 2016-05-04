@@ -13,8 +13,16 @@ public class SCCallback {
 
 	static public int SCMessageHandler(int obj, int msg) 
 	{
-		Log.e("camera","disconnect " + msg);
-		DecodeStream.notifyClosed();
+		
+		if(obj == 0)
+		{
+			DecodeStream.notifyClosed();
+		}
+		else if(obj == 1)
+		{
+			DecodeStream.notifyOpened();
+		}
+		
 		return 0;
 	}
 

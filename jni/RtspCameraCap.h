@@ -23,13 +23,15 @@ class Detect:public CORE::Runnable
 public:
 	Detect();
 	virtual ~Detect(void);
-	bool start(RtspCameraCap* pCamera,std::string rtsp_url);
+	bool start(RtspCameraCap* pCamera,std::string rtsp_url,int timeout, bool tcp);
 	bool stop();
 	virtual void run(void);
 private:
 	CORE::Core_Thread _thread;
 	std::string rtsp_url;
 	bool _decExit;
+	bool _tcp;
+	int _timeout;
 	CORE::Core_Event _evtReady;
 	RtspCameraCap* _pCamera;
 };
@@ -47,12 +49,15 @@ public:
 	static int init ();
 	virtual void run();
 	media_packt* getimage(int timeout);
-	int open(const char* psDevName ,int timeout_ms,bool auto_reconnect);
+	int connect(const char* psDevName ,int timeout_ms,bool auto_reconnect ,bool tcp);
+	int open(const char* psDevName ,int timeout_ms,bool auto_reconnect,bool tcp);
+	int pause(bool bPause);
 	bool isstop() {return _bExit;}
 	int istimeout();
 	int _width;  //流的宽度
 	int _height;  //流的高度
 	int _format;  //编码格式H264，mpeg4
+	bool _pause;
 private:
 	AVFormatContext	*pFormatCtx_Video;
 	CORE::Core_Thread _thread;

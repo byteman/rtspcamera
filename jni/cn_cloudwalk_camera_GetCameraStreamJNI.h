@@ -13,7 +13,11 @@ extern "C" {
  * Signature: (Ljava/lang/String;)I
  */
 JNIEXPORT jint JNICALL Java_cn_cloudwalk_camera_GetCameraStreamJNI_Open
-  (JNIEnv *, jclass,jstring, jint timeout_ms,jboolean);
+  (JNIEnv *, jclass,jstring, jint timeout_ms,jboolean,jboolean);
+
+JNIEXPORT jint JNICALL Java_cn_cloudwalk_camera_GetCameraStreamJNI_Pause
+  (JNIEnv *, jclass,jboolean);
+
 
 /*
  * Class:     cn_cloudwalk_camera_GetCameraStreamJNI
