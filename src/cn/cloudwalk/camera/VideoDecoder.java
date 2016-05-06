@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.util.Log;
 
@@ -14,11 +15,12 @@ public class VideoDecoder {
 	private static String MIME_TYPE = "video/avc";
 	private MediaCodec mMediaCodec = null;
 	private static MediaFormat mediaFormat = null;
+	private static MediaInfo mediaInfo = null;
 	ByteBuffer[] outputBuffers;
 	ByteBuffer[] inputBuffers;
 	int mCount = 0;
 	int offset = 0;
-
+	int format = 0;
 	public int writeInput(byte[] arr,int timeoutUS) {
 		try {
 			if(mMediaCodec==null)return -1;
@@ -44,10 +46,25 @@ public class VideoDecoder {
 		}
 		return 0;
 	}
-
+	public byte[] swapYUV420SemiPlanartoYUV420Planar(byte[] yv12bytes, int width, int height) 
+	{
+		 byte[] i420bytes = new byte[yv12bytes.length];
+		 System.arraycopy(yv12bytes, 0, i420bytes, 0, width*height); // Y
+		
+		 for (int i = 0; i < (width/4*height); i++)
+		 {
+			 i420bytes[i+width*height]   = yv12bytes[i*2+width*height];
+			 i420bytes[i+width*height*5/4] = yv12bytes[i*2+1+width*height];
+			
+		 }
+		  
+		
+		 return i420bytes;
+	}
+	
 	public byte[] getOutput(int timeoutUS) {
 		try {
-
+			byte[] tmp = null;
 			MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
 			// Log.e("Media","begin dequeueOutputBuffer");
 			int outputBufferIndex = -1;
@@ -76,18 +93,34 @@ public class VideoDecoder {
 				return null;
 			}
 			byte outData[] = new byte[bufferInfo.size];
-			
+			//Log.e("Media","buffsize="+bufferInfo.size);
 			ByteBuffer outputBuffer = outputBuffers[outputBufferIndex];  
 				
 			outputBuffer.get(outData);
+			//tmp = swapYV12toI420(outData,mediaInfo.width,mediaInfo.height);
+			
+			if(format == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar)
+			{
+				tmp = outData;
+			}
+			else if(format == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)
+			{
+				 tmp = swapYUV420SemiPlanartoYUV420Planar(outData,mediaInfo.width,mediaInfo.height);
+			}
+			
 			mMediaCodec.releaseOutputBuffer(outputBufferIndex, true);
 			
-			return outData;
+			return tmp;
 			
 		} 
+		
 		catch (IllegalStateException e) {
 			// TODO: handle exception
-			Log.e("Media", "dequeueOutputBuffer error");
+			if(e!=null)
+			{
+				Log.e("Media", "dequeueOutputBuffer error"+ e.getMessage());
+			}
+			
 			// mMediaCodec.stop();
 			// mMediaCodec.start();
 			return null;
@@ -121,6 +154,9 @@ public class VideoDecoder {
 			mMediaCodec.start();
 			outputBuffers = mMediaCodec.getOutputBuffers();
 			inputBuffers = mMediaCodec.getInputBuffers();
+			format = mMediaCodec.getOutputFormat().getInteger(MediaFormat.KEY_COLOR_FORMAT);
+			Log.e("Media", "format="+format);
+			mediaInfo = info;
 		}
 		return 0;
 	}

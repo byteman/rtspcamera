@@ -49,6 +49,7 @@ static std::list<media_packt*> q;
 static int init_ffmpeg_env(int enable_log,std::string path)
 {
 
+	if(enable_log == 0)return 0;
 #ifdef WIN32
 	std::string log_cfg = path+"\\record.ini";
 	std::string log_out = path+"\\"+get_log_filename();
@@ -95,7 +96,7 @@ int RtspCameraCap::init ()
 {
 	av_register_all();
 	avformat_network_init();
-	init_ffmpeg_env(0,"/sdcard");
+	init_ffmpeg_env(1,"/sdcard");
 }
 #define EXIT1(n) avformat_free_context(pFormatCtx_Video);pFormatCtx_Video = NULL;return n;
 
@@ -146,8 +147,9 @@ int RtspCameraCap::open(const char* psDevName,int timeout_ms,bool auto_reconnect
 		LOGE("pFormatCtx_Video!=NULL");
 		return -7;
 	}
-	LOGE("open -- %d",__LINE__);
+	LOGE("avformat_alloc_context -- %d",__LINE__);
 	pFormatCtx_Video = avformat_alloc_context();
+	LOGE("avformat_alloc_context -- %d",__LINE__);
 
 	if(pFormatCtx_Video == NULL)
 	{
@@ -164,6 +166,8 @@ int RtspCameraCap::open(const char* psDevName,int timeout_ms,bool auto_reconnect
 	}
 
 	av_dict_set_int(&avdic, "stimeout", timeout_ms*1000, 0);			//è®¾ç½®avformat_open_inputçš„è¶…æ—¶æ—¶é—´
+	
+	//av_dict_set_int(&avdic, "reorder_queue_size", 100, 0);
 
 	int result=avformat_open_input(&pFormatCtx_Video, psDevName,NULL,&avdic);
 	if (result < 0){
@@ -215,6 +219,7 @@ int RtspCameraCap::open(const char* psDevName,int timeout_ms,bool auto_reconnect
 	LOGE("thread start....\n");
 	start();
 	LOGE("thread start....ok\n");
+	flush();
 
 	return 0;
 
@@ -238,25 +243,39 @@ bool RtspCameraCap::stop()
 	dector.stop();
 	return true;
 }
-
+void RtspCameraCap::flush()
+{
+	
+	CORE::Core_FastMutex::ScopedLock lock(_mutex);
+	while(q.size() > 0)
+	{
+		media_packt* discard_pkt = q.front();
+		q.pop_front();
+		if(discard_pkt != NULL)
+			delete discard_pkt;
+		discard_pkt = NULL;
+	}
+}
 void RtspCameraCap::run()
 {
 	LOGE("open -- %d",__LINE__);
 	AVPacket packet;
 	int err = 0;
+	flush();
 	av_init_packet(&packet);
 	_evtReady.set();
 	_bExit = false;
 	LOGE("open -- %d",__LINE__);
 	pFormatCtx_Video->interrupt_callback.callback = AVInterruptCallBackFun;  
 	pFormatCtx_Video->interrupt_callback.opaque = this;  
-	
+	key_frame_num = 0;
 	while(!_bExit)
 	{
 		packet.data = NULL;
 		packet.size = 0;
 		//LOGE("open -- %d",__LINE__);
 		err = av_read_frame(pFormatCtx_Video, &packet);
+	
 		if (err < 0)
 		{
 			_bExit = true;
@@ -264,6 +283,7 @@ void RtspCameraCap::run()
 			break;
 			//continue;
 		}
+		//LOGE("seqnum=%d",packet.seq);
 		timeout = 0;
 		if(_pause)
 		{
@@ -273,7 +293,17 @@ void RtspCameraCap::run()
 		if(packet.stream_index == stream_index)
 		{
 			CORE::Core_FastMutex::ScopedLock lock(_mutex);
-			#if 1
+			if(packet.size > 4)
+			{
+				if(packet.data[4] == 0x67)
+				{
+					LOGE("key frame %d",++key_frame_num);
+					
+				}
+
+			}
+			
+			#if 0
 			if(q.size() > 25)
 			{
 				media_packt* discard_pkt = q.front();
@@ -306,6 +336,15 @@ void RtspCameraCap::run()
 	}
 	_evtData.set();
 	#endif
+}
+//Ö±½ÓÕÒµ½Ò»¸ö¹Ø¼üÖ¡.
+media_packt* RtspCameraCap::GetKeyFrame()
+{
+	CORE::Core_FastMutex::ScopedLock lock(_mutex);
+	for(int i = 0; i < q.size();i++)
+	{
+		
+	}
 }
 
 media_packt* RtspCameraCap::getimage(int timeout)
@@ -391,6 +430,7 @@ void Detect::run(void)
 {
 	_decExit = false;
 	_evtReady.set();
+	
 	//CORE::Core_Thread::sleep(5000);
 	while(!_decExit)
 	{

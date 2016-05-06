@@ -58,9 +58,9 @@ public class MainActivity extends Activity implements RtspObserver{
 			@Override
 			public void onClick(View arg0) {
 				DecodeStream.get().setCallbak(MainActivity.this);
-				int err = DecodeStream.get().Start("rtsp://admin:admin123@192.168.1.200",2000);
-				//int err = DecodeStream.get().Start("rtsp://218.204.223.237:554/live/1/66251FC11353191F/e7ooqwcfbqjoo80j.sdp",2000);
-				// int err = DecodeStream.get().Start("rtsp://192.168.1.245/8.264",2000);
+				//int err = DecodeStream.get().Start("rtsp://admin:admin123@192.168.1.200",2000);
+				//int err = DecodeStream.get().Start("rtsp://218.204.223.237:554/live/1/66251FC11353191F/e7ooqwcfbqjoo80j.sdp",2000,true,false);
+				 int err = DecodeStream.get().Start("rtsp://192.168.10.55/out.264",2000,true,false);
 		    	Log.e("camera", "ret="+err);
 		    	if(err < 0) 
 		    		return;
@@ -78,7 +78,7 @@ public class MainActivity extends Activity implements RtspObserver{
 	protected void onPause() {
 		// TODO Auto-generated method stub
 		super.onPause();
-		DecodeStream.get().pause(true);
+		//DecodeStream.get().pause(true);
 	}
 
 
@@ -87,7 +87,7 @@ public class MainActivity extends Activity implements RtspObserver{
 	protected void onResume() {
 		// TODO Auto-generated method stub
 		super.onResume();
-		DecodeStream.get().pause(false);
+		//DecodeStream.get().pause(false);
 	}
 
 
