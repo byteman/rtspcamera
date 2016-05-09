@@ -1,6 +1,6 @@
 bin
 Debug
-armeabi-v7a
+obj
 # Built application files
 *.apk
 *.ap_
